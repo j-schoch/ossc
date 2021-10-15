@@ -64,6 +64,21 @@ parameter   Y_START     =   V_SYNCLEN + V_BACKPORCH;
 reg [9:0] h_cnt; //max. 1024
 reg [9:0] v_cnt; //max. 1024
 
+// Default image dimensions in pixels
+parameter IMAGE_SIZE_X = 10'd1024;
+parameter IMAGE_SIZE_Y = 10'd768;
+
+// Assumes 24bit color - each pixel requires 3 bytes (RGB no alpha)
+parameter IMAGE_MEMORY_SIZE = IMAGE_SIZE_X * IMAGE_SIZE_Y * 3;
+
+// Hex array image memory declaration
+reg [7:0] imageHexArray24bit[0:IMAGE_MEMORY_SIZE-1];
+
+initial begin
+    // read the image file into memory (file is a 24bit image converted to hex array)
+    $readmemh("startup_image.hex", imageHexArray24bit);
+end
+
 //HSYNC gen (negative polarity)
 always @(posedge clk27 or negedge reset_n)
 begin
@@ -137,18 +152,34 @@ begin
                 end
             endcase
         end else begin
-            if ((xpos < H_OVERSCAN) || (xpos >= H_OVERSCAN+H_AREA) || (ypos < V_OVERSCAN) || (ypos >= V_OVERSCAN+V_AREA))
-                {R_out, G_out, B_out} <= {3{(xpos[0] ^ ypos[0]) ? 8'hff : 8'h00}};
-            else if ((xpos < H_OVERSCAN+H_BORDER) || (xpos >= H_OVERSCAN+H_AREA-H_BORDER) || (ypos < V_OVERSCAN+V_BORDER) || (ypos >= V_OVERSCAN+V_AREA-V_BORDER))
-                {R_out, G_out, B_out} <= {3{8'h50}};
-            else if (ypos >= V_OVERSCAN+V_BORDER+V_GRADIENT-V_GRAYRAMP)
-                {R_out, G_out, B_out} <= {3{8'((((xpos - (H_OVERSCAN+H_BORDER)) >> 4) << 3) + (xpos - (H_OVERSCAN+H_BORDER) >> 6))}};
-            else
-                {R_out, G_out, B_out} <= {3{8'((xpos - (H_OVERSCAN+H_BORDER)) >> 1)}};
+            // Normalize the screen position
+            real normalXPos = lerp(0.0, 1.0, $itor(xpos)/$itor(H_AREA));
+            real normalYPos = lerp(0.0, 1.0, $itor(ypos)/$itor(V_AREA));
+			
+            // Get the image pixel index
+            reg [9:0] imageX     = $rtoi(lerp(0.0, $itor(IMAGE_SIZE_X-1), normalXPos));
+            reg [9:0] imageY     = $rtoi(lerp(0.0, $itor(IMAGE_SIZE_Y-1), normalYPos));
+			
+            // Sample RGB values from the hex array
+            // based on current pixel index
+            reg [9:0] index = (imageY * IMAGE_SIZE_X * 3) + (imageX * 3);
+            {R_out, G_out, B_out} <= {
+                imageHexArray24bit[index], 
+                imageHexArray24bit[(index+1)],
+                imageHexArray24bit[(index+2)]
+            };
+            // Hope this works \o7
         end
 
         DE_out <= (h_cnt >= X_START && h_cnt < X_START + H_ACTIVE && v_cnt >= Y_START && v_cnt < Y_START + V_ACTIVE);
     end
 end
-
-endmodule
+    
+function real lerp;
+    input real a, b, t;
+    begin
+        lerp = (a * (1.0 - t)) + (b * t);
+    end
+endfunction : lerp
+    
+endmodule : videogen
