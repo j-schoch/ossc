@@ -47,16 +47,6 @@ parameter   V_ACTIVE        =   10'd480;
 parameter   V_FRONTPORCH    =   10'd9;
 parameter   V_TOTAL         =   10'd525;
 
-parameter   H_OVERSCAN      =   10'd40; //at both sides
-parameter   V_OVERSCAN      =   10'd16; //top and bottom
-parameter   H_AREA          =   10'd640;
-parameter   V_AREA          =   10'd448;
-parameter   H_GRADIENT      =   10'd512;
-parameter   V_GRADIENT      =   10'd256;
-parameter   V_GRAYRAMP      =   10'd84;
-parameter   H_BORDER        =   ((H_AREA-H_GRADIENT)>>1);
-parameter   V_BORDER        =   ((V_AREA-V_GRADIENT)>>1);
-
 parameter   X_START     =   H_SYNCLEN + H_BACKPORCH;
 parameter   Y_START     =   V_SYNCLEN + V_BACKPORCH;
 
@@ -65,10 +55,10 @@ reg [9:0] h_cnt; //max. 1024
 reg [9:0] v_cnt; //max. 1024
 
 // Default image dimensions in pixels
-parameter IMAGE_SIZE_X = 10'd1024;
-parameter IMAGE_SIZE_Y = 10'd768;
+parameter IMAGE_SIZE_X = 10'd180;
+parameter IMAGE_SIZE_Y = 10'd120;
 
-// Assumes 24bit color - each pixel requires 3 bytes (RGB no alpha)
+// Assumes 24bit color - each pixel requires 3 bytes (RGB 8 bits each, no alpha)
 parameter IMAGE_MEMORY_SIZE = IMAGE_SIZE_X * IMAGE_SIZE_Y * 3;
 
 // Hex array image memory declaration
@@ -76,7 +66,7 @@ reg [7:0] imageHexArray24bit[0:IMAGE_MEMORY_SIZE-1];
 
 initial begin
     // read the image file into memory (file is a 24bit image converted to hex array)
-    $readmemh("startup_image.hex", imageHexArray24bit);
+    $readmemh("startup_image_180x120.hex", imageHexArray24bit);
 end
 
 //HSYNC gen (negative polarity)
@@ -152,34 +142,20 @@ begin
                 end
             endcase
         end else begin
-            // Normalize the screen position
-            real normalXPos = lerp(0.0, 1.0, $itor(xpos)/$itor(H_AREA));
-            real normalYPos = lerp(0.0, 1.0, $itor(ypos)/$itor(V_AREA));
-			
-            // Get the image pixel index
-            reg [9:0] imageX     = $rtoi(lerp(0.0, $itor(IMAGE_SIZE_X-1), normalXPos));
-            reg [9:0] imageY     = $rtoi(lerp(0.0, $itor(IMAGE_SIZE_Y-1), normalYPos));
-			
-            // Sample RGB values from the hex array
-            // based on current pixel index
-            reg [9:0] index = (imageY * IMAGE_SIZE_X * 3) + (imageX * 3);
-            {R_out, G_out, B_out} <= {
-                imageHexArray24bit[index], 
-                imageHexArray24bit[(index+1)],
-                imageHexArray24bit[(index+2)]
-            };
-            // Hope this works \o7
+            // Sample RGB values from the hex array based on current position.
+            // xpos and ypos divided by 4 to scale from 720x480 to 180x120.
+            // If I were more confident in verilog syntax I would make the code more readable.
+            // This formula:
+            // 1. Take input between (0,0) and (719,479), and divide by 4 to remap to the image size
+            // 2. Multiply by 3 because each pixel has 3 array entries (RGB)
+            // 3. Multiply Y by the image width to convert the 2D coordinate into the 1D array index
+            // 4. Add an offset of 1 and 2 to get the G and B components
+            R_out <= imageHexArray24bit[((ypos>>2) * 3 * IMAGE_SIZE_X) + ((xpos>>2) * 3) + 0];
+            G_out <= imageHexArray24bit[((ypos>>2) * 3 * IMAGE_SIZE_X) + ((xpos>>2) * 3) + 1];
+            B_out <= imageHexArray24bit[((ypos>>2) * 3 * IMAGE_SIZE_X) + ((xpos>>2) * 3) + 2];
         end
-
         DE_out <= (h_cnt >= X_START && h_cnt < X_START + H_ACTIVE && v_cnt >= Y_START && v_cnt < Y_START + V_ACTIVE);
     end
 end
-    
-function real lerp;
-    input real a, b, t;
-    begin
-        lerp = (a * (1.0 - t)) + (b * t);
-    end
-endfunction : lerp
-    
-endmodule : videogen
+
+endmodule
