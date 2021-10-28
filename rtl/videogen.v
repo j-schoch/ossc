@@ -61,9 +61,9 @@ parameter IMAGE_SIZE_Y = 10'd120;
 // Each pixel cooresponds to a color palette index in the text file
 parameter IMAGE_MEMORY_SIZE = IMAGE_SIZE_X * IMAGE_SIZE_Y;
 
-// Indices array memory declaration, 3 bits per pixel (index maximum of 5, only needs 3 bits)
-reg [2:0] paletteIndexArray[0:IMAGE_MEMORY_SIZE-1];
-// Color palette has six 24-bit colors in it (eighteen 8-bit components)
+// Indices array memory declaration, 4 bits per pixel (one hex value, index into the palette)
+reg [3:0] paletteIndexArray[0:IMAGE_MEMORY_SIZE-1];
+// Color palette has six 24-bit colors in it (eighteen 8-bit array elements)
 reg [7:0] colorPaletteArray[0:17];
 
 initial begin
