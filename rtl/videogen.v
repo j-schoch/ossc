@@ -54,22 +54,40 @@ parameter   Y_START     =   V_SYNCLEN + V_BACKPORCH;
 reg [9:0] h_cnt; //max. 1024
 reg [9:0] v_cnt; //max. 1024
 
-// Default image dimensions in pixels
-parameter IMAGE_SIZE_X = 10'd180;
-parameter IMAGE_SIZE_Y = 10'd120;
 
-// Each pixel cooresponds to a color palette index in the text file
-parameter IMAGE_MEMORY_SIZE = IMAGE_SIZE_X * IMAGE_SIZE_Y;
+// startup logo image size
+parameter IMG_SIZE_X = 10'd57;
+parameter IMG_SIZE_Y = 10'd85;
 
-// Indices array memory declaration, 4 bits per pixel (one hex value, index into the palette)
-reg [3:0] paletteIndexArray[0:IMAGE_MEMORY_SIZE-1];
-// Color palette has six 24-bit colors in it (eighteen 8-bit array elements)
-reg [7:0] colorPaletteArray[0:17];
+// padding around image (colored procedurally)
+parameter IMG_PAD_L = 10'd62;
+parameter IMG_PAD_R = 10'd61;
+parameter IMG_PAD_T = 10'd18;
+parameter IMG_PAD_B = 10'd17;
+
+// total size of image + padding (should equal 180x120 to fit 720x480 screen)
+parameter IMG_TOTAL_X = IMG_PAD_L + IMAGE_SIZE_X + IMG_PAD_R;
+parameter IMG_TOTAL_Y = IMAGE_PAD_T + IMAGE_SIZE_Y + IMAGE_PAD_B;
+
+// edge positions for convenience of logic
+parameter IMG_EDGE_L = IMG_PAD_L;
+parameter IMG_EDGE_R = IMG_PAD_L + IMAGE_SIZE_X;
+parameter IMG_EDGE_T = IMAGE_PAD_T;
+parameter IMG_EDGE_B = IMAGE_PAD_T + IMAGE_SIZE_Y;
+
+// each pixel cooresponds to an index in binary
+parameter IMG_MEM_SIZE = IMAGE_SIZE_X * IMAGE_SIZE_Y;
+    
+// screen position scaled to pixel position (xpos and ypos / 4)
+reg [9:0] px; 
+reg [9:0] py;
+
+// color index array memory
+reg [2:0] colorIndexArray[0:IMG_MEM_SIZE-1];
 
 initial begin
-    // read the indices file and the color palette into memory
-    $readmemh("colorIndices.txt", paletteIndexArray);
-    $readmemh("colorPalette.txt", colorPaletteArray);
+    // read the indices file into memory
+    $readmemb("colorIndex.mem", colorIndexArray);
 end
 
 //HSYNC gen (negative polarity)
@@ -79,15 +97,18 @@ begin
         h_cnt <= 0;
         xpos <= 0;
         HSYNC_out <= 0;
+        px <= 0;
     end else begin
         //Hsync counter
         if (h_cnt < H_TOTAL-1) begin
             h_cnt <= h_cnt + 1'b1;
             if (h_cnt >= X_START)
                 xpos <= xpos + 1'b1;
+                px <= (xpos>>2);
         end else begin
             h_cnt <= 0;
             xpos <= 0;
+            px <= 0;
         end
 
         //Hsync signal
@@ -102,6 +123,7 @@ begin
         v_cnt <= 0;
         ypos <= 0;
         VSYNC_out <= 0;
+        py <= 0;
     end else begin
         //Vsync counter
         if (h_cnt == H_TOTAL-1) begin
@@ -109,9 +131,11 @@ begin
                 v_cnt <= v_cnt + 1'b1;
                 if (v_cnt >= Y_START)
                     ypos <= ypos + 1'b1;
+                    py <= (ypos>>2);
             end else begin
                 v_cnt <= 0;
                 ypos <= 0;
+                py <= 0;
             end
         end
 
@@ -145,20 +169,48 @@ begin
                 end
             endcase
         end else begin
-            // Sample an index from the index array based on current position, use it to look up palette RGB
-            // xpos and ypos divided by 4 to scale from 720x480 to 180x120.
-            // If I were more confident in verilog syntax I would make the code more readable.
-            // This formula:
-            // 1. Take input between (0,0) and (719,479), and divide by 4 to remap to the image size
-            // 2. Multiply Y by the image width to convert the 2D coordinate into the 1D array index
-            // 3. Multiply index by 3 to make index land on the R component of each palette color
-            // 4. Add an offset of 1 and 2 to get the G and B components
-            R_out <= colorPaletteArray[(paletteIndexArray[((ypos>>2) * IMAGE_SIZE_X) + (xpos>>2)] * 3) + 0]
-            G_out <= colorPaletteArray[(paletteIndexArray[((ypos>>2) * IMAGE_SIZE_X) + (xpos>>2)] * 3) + 1];
-            B_out <= colorPaletteArray[(paletteIndexArray[((ypos>>2) * IMAGE_SIZE_X) + (xpos>>2)] * 3) + 2];
+            // outside the image edge
+            if((px < IMG_EDGE_L) || (px > IMG_EDGE_R) || (py < IMG_EDGE_T) || (py > IMG_EDGE_B)) begin
+                // add solid color
+                {R_out, G_out, B_out} <= {3{8'h00}};
+            end else begin
+                // inside the image edge
+                // using pixel position px and py (offset for padding)
+                // sample an index from the array
+                // then switch color based on index
+                case (colorIndexArray[((py - IMG_PAD_T) * IMG_SIZE_X) + (px - IMG_PAD_L)])
+                    3'b000 : begin
+                        {R_out, G_out, B_out} <= {3{8'h00}};
+                    end
+                    3'b001 : begin
+                        {R_out, G_out, B_out} <= {3{8'hff}};
+                    end
+                    3'b010 : begin
+                        {R_out, G_out, B_out} <= {3{8'he8}};
+                    end
+                    3'b011 : begin
+                        R_out <= 8'hca;
+                        G_out <= 8'h02;
+                        B_out <= 8'h06;
+                    end
+                    3'b100 : begin
+                        R_out <= 8'hed;
+                        G_out <= 8'h20;
+                        B_out <= 8'h24;
+                    end
+                    3'b101 : begin
+                        R_out <= 8'hf0;
+                        G_out <= 8'h54;
+                        B_out <= 8'h57;
+                    end
+                    default: begin
+                        {R_out, G_out, B_out} <= {3{8'h00}};
+                    end
+                endcase
+            end
         end
         DE_out <= (h_cnt >= X_START && h_cnt < X_START + H_ACTIVE && v_cnt >= Y_START && v_cnt < Y_START + V_ACTIVE);
     end
 end
 
-endmodule
+endmodule : videogen
