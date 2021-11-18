@@ -60,23 +60,25 @@ parameter IMG_SIZE_X = 10'd57;
 parameter IMG_SIZE_Y = 10'd85;
 
 // padding around image (colored procedurally)
+// left, right, top, bottom
 parameter IMG_PAD_L = 10'd62;
 parameter IMG_PAD_R = 10'd61;
 parameter IMG_PAD_T = 10'd18;
 parameter IMG_PAD_B = 10'd17;
 
 // total size of image + padding (should equal 180x120 to fit 720x480 screen)
-parameter IMG_TOTAL_X = IMG_PAD_L + IMAGE_SIZE_X + IMG_PAD_R;
-parameter IMG_TOTAL_Y = IMAGE_PAD_T + IMAGE_SIZE_Y + IMAGE_PAD_B;
+parameter IMG_TOTAL_X = IMG_PAD_L + IMG_SIZE_X + IMG_PAD_R;
+parameter IMG_TOTAL_Y = IMG_PAD_T + IMG_SIZE_Y + IMG_PAD_B;
 
-// edge positions for convenience of logic
+// image edge positions for convenience
+// left, right, top, bottom
 parameter IMG_EDGE_L = IMG_PAD_L;
-parameter IMG_EDGE_R = IMG_PAD_L + IMAGE_SIZE_X;
-parameter IMG_EDGE_T = IMAGE_PAD_T;
-parameter IMG_EDGE_B = IMAGE_PAD_T + IMAGE_SIZE_Y;
+parameter IMG_EDGE_R = IMG_PAD_L + IMG_SIZE_X;
+parameter IMG_EDGE_T = IMG_PAD_T;
+parameter IMG_EDGE_B = IMG_PAD_T + IMG_SIZE_Y;
 
 // each pixel cooresponds to an index in binary
-parameter IMG_MEM_SIZE = IMAGE_SIZE_X * IMAGE_SIZE_Y;
+parameter IMG_MEM_SIZE = IMG_SIZE_X * IMG_SIZE_Y;
     
 // screen position scaled to pixel position (xpos and ypos / 4)
 reg [9:0] px; 
@@ -177,7 +179,6 @@ begin
                 // inside the image edge
                 // using pixel position px and py (offset for padding)
                 // sample an index from the array
-                // then switch color based on index
                 case (colorIndexArray[((py - IMG_PAD_T) * IMG_SIZE_X) + (px - IMG_PAD_L)])
                     3'b000 : begin
                         {R_out, G_out, B_out} <= {3{8'h00}};
@@ -189,21 +190,15 @@ begin
                         {R_out, G_out, B_out} <= {3{8'he8}};
                     end
                     3'b011 : begin
-                        R_out <= 8'hca;
-                        G_out <= 8'h02;
-                        B_out <= 8'h06;
+                        {R_out, G_out, B_out} <= {{8'hf0},{8'h54},{8'h57}};
                     end
                     3'b100 : begin
-                        R_out <= 8'hed;
-                        G_out <= 8'h20;
-                        B_out <= 8'h24;
+                        {R_out, G_out, B_out} <= {{8'hed},{8'h20},{8'h24}};
                     end
                     3'b101 : begin
-                        R_out <= 8'hf0;
-                        G_out <= 8'h54;
-                        B_out <= 8'h57;
+                        {R_out, G_out, B_out} <= {{8'hca},{8'h02},{8'h06}};
                     end
-                    default: begin
+                    default : begin
                         {R_out, G_out, B_out} <= {3{8'h00}};
                     end
                 endcase
