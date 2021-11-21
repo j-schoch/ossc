@@ -104,9 +104,10 @@ begin
         //Hsync counter
         if (h_cnt < H_TOTAL-1) begin
             h_cnt <= h_cnt + 1'b1;
-            if (h_cnt >= X_START)
+            if (h_cnt >= X_START) begin
                 xpos <= xpos + 1'b1;
                 px <= (xpos>>2);
+            end
         end else begin
             h_cnt <= 0;
             xpos <= 0;
@@ -131,9 +132,10 @@ begin
         if (h_cnt == H_TOTAL-1) begin
             if (v_cnt < V_TOTAL-1) begin
                 v_cnt <= v_cnt + 1'b1;
-                if (v_cnt >= Y_START)
+                if (v_cnt >= Y_START) begin
                     ypos <= ypos + 1'b1;
                     py <= (ypos>>2);
+                end
             end else begin
                 v_cnt <= 0;
                 ypos <= 0;
