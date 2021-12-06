@@ -89,7 +89,7 @@ reg [2:0] colorIndexArray[0:IMG_MEM_SIZE-1];
 
 initial begin
     // read the indices file into memory
-    $readmemb("colorIndex.mem", colorIndexArray);
+    $readmemb("colorIndices.mem", colorIndexArray);
 end
 
 //HSYNC gen (negative polarity)
@@ -98,8 +98,8 @@ begin
     if (!reset_n) begin
         h_cnt <= 0;
         xpos <= 0;
-        HSYNC_out <= 0;
         px <= 0;
+        HSYNC_out <= 0;
     end else begin
         //Hsync counter
         if (h_cnt < H_TOTAL-1) begin
@@ -125,8 +125,8 @@ begin
     if (!reset_n) begin
         v_cnt <= 0;
         ypos <= 0;
-        VSYNC_out <= 0;
         py <= 0;
+        VSYNC_out <= 0;
     end else begin
         //Vsync counter
         if (h_cnt == H_TOTAL-1) begin
@@ -174,14 +174,14 @@ begin
             endcase
         end else begin
             // outside the image edge
-            if((px < IMG_EDGE_L) || (px > IMG_EDGE_R) || (py < IMG_EDGE_T) || (py > IMG_EDGE_B)) begin
+            if((px < IMG_EDGE_L) || (px >= IMG_EDGE_R) || (py < IMG_EDGE_T) || (py >= IMG_EDGE_B)) begin
                 // add solid color
                 {R_out, G_out, B_out} <= {3{8'h00}};
             end else begin
                 // inside the image edge
                 // using pixel position px and py (offset for padding)
                 // sample an index from the array
-                case (colorIndexArray[((py - IMG_PAD_T) * IMG_SIZE_X) + (px - IMG_PAD_L)])
+                case (colorIndexArray[(py - IMG_PAD_T) * IMG_SIZE_X + (px - IMG_PAD_L)])
                     3'b000 : begin
                         {R_out, G_out, B_out} <= {3{8'h00}};
                     end
