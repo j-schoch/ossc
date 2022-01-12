@@ -79,10 +79,7 @@ parameter IMG_EDGE_B = IMG_PAD_T + IMG_SIZE_Y;
 
 // each pixel cooresponds to an index in binary
 parameter IMG_MEM_SIZE = IMG_SIZE_X * IMG_SIZE_Y;
-    
-// screen position scaled to pixel position (xpos and ypos / 4)
-reg [9:0] px; 
-reg [9:0] py;
+   
 
 // color index array memory
 reg [2:0] colorIndexArray[0:IMG_MEM_SIZE-1];
@@ -98,7 +95,6 @@ begin
     if (!reset_n) begin
         h_cnt <= 0;
         xpos <= 0;
-        px <= 0;
         HSYNC_out <= 0;
     end else begin
         //Hsync counter
@@ -106,12 +102,10 @@ begin
             h_cnt <= h_cnt + 1'b1;
             if (h_cnt >= X_START) begin
                 xpos <= xpos + 1'b1;
-                px <= (xpos>>2);
             end
         end else begin
             h_cnt <= 0;
             xpos <= 0;
-            px <= 0;
         end
 
         //Hsync signal
@@ -125,7 +119,6 @@ begin
     if (!reset_n) begin
         v_cnt <= 0;
         ypos <= 0;
-        py <= 0;
         VSYNC_out <= 0;
     end else begin
         //Vsync counter
@@ -134,12 +127,10 @@ begin
                 v_cnt <= v_cnt + 1'b1;
                 if (v_cnt >= Y_START) begin
                     ypos <= ypos + 1'b1;
-                    py <= (ypos>>2);
                 end
             end else begin
                 v_cnt <= 0;
                 ypos <= 0;
-                py <= 0;
             end
         end
 
@@ -173,15 +164,25 @@ begin
                 end
             endcase
         end else begin
+            // screen position scaled to pixel position (xpos and ypos / 4)
+            reg [9:0] px;
+            reg [9:0] py;
+            px = (xpos>>2);
+            py = (ypos>>2);
+                
             // outside the image edge
             if((px < IMG_EDGE_L) || (px >= IMG_EDGE_R) || (py < IMG_EDGE_T) || (py >= IMG_EDGE_B)) begin
                 // add solid color
                 {R_out, G_out, B_out} <= {3{8'h00}};
             end else begin
                 // inside the image edge
-                // using pixel position px and py (offset for padding)
-                // sample an index from the array
-                case (colorIndexArray[(py - IMG_PAD_T) * IMG_SIZE_X + (px - IMG_PAD_L)])
+                
+                // index into the flattened 2D array
+                reg [12:0] index;
+                // convert 2D coordinate to 1D array index, offset with padding to center the image
+                index = ((py - IMG_PAD_T) * IMG_SIZE_X + (px - IMG_PAD_L));
+
+                case (colorIndexArray[index])
                     3'b000 : begin
                         {R_out, G_out, B_out} <= {3{8'h00}};
                     end
